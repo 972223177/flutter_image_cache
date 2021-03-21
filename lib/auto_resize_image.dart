@@ -34,19 +34,19 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
 
   /// [ExtendedResizeImage] will compress the image to a size
   /// that is smaller than [maxBytes]. The default size is 500KB.
-  final int maxBytes;
+  final int? maxBytes;
 
   /// The image`s size will resize to original * [compressionRatio].
   /// It's ExtendedResizeImage`s first pick.
   /// The compressionRatio`s range is from 0.0 (exclusive), to
   /// 1.0 (exclusive).
-  final double compressionRatio;
+  final double? compressionRatio;
 
   /// The width the image should decode to and cache.
-  final int width;
+  final int? width;
 
   /// The height the image should decode to and cache.
-  final int height;
+  final int? height;
 
   /// Whether the [width] and [height] parameters should be clamped to the
   /// intrinsic width and height of the image.
@@ -65,11 +65,11 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   ///
   /// Extended with `scaling` and `maxBytes`.
   static ImageProvider<Object> resizeIfNeeded({
-    @required ImageProvider<Object> provider,
-    int cacheWidth,
-    int cacheHeight,
-    double compressionRatio,
-    int maxBytes,
+    required ImageProvider<Object> provider,
+    int? cacheWidth,
+    int? cacheHeight,
+    double? compressionRatio,
+    int? maxBytes,
   }) {
     if ((compressionRatio != null &&
         compressionRatio > 0 &&
@@ -92,9 +92,9 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   ImageStreamCompleter load(_SizeAwareCacheKey key, DecoderCallback decode) {
     final DecoderCallback decodeResize = (
         Uint8List bytes, {
-          int cacheWidth,
-          int cacheHeight,
-          bool allowUpscaling,
+          int? cacheWidth,
+          int? cacheHeight,
+          bool? allowUpscaling,
         }) {
       assert(
       cacheWidth == null && cacheHeight == null && allowUpscaling == null,
@@ -123,10 +123,10 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
 
   @override
   Future<_SizeAwareCacheKey> obtainKey(ImageConfiguration configuration) {
-    Completer<_SizeAwareCacheKey> completer;
+    Completer<_SizeAwareCacheKey>? completer;
     // If the imageProvider.obtainKey future is synchronous, then we will be able to fill in result with
     // a value before completer is initialized below.
-    SynchronousFuture<_SizeAwareCacheKey> result;
+    SynchronousFuture<_SizeAwareCacheKey>? result;
     imageProvider.obtainKey(configuration).then((Object key) {
       if (completer == null) {
         // This future has completed synchronously (completer was never assigned),
@@ -140,7 +140,7 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
       }
     });
     if (result != null) {
-      return result;
+      return result!;
     }
     // If the code reaches here, it means the imageProvider.obtainKey was not
     // completed sync, so we initialize the completer for completion later.
@@ -150,10 +150,10 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
 
   Future<Codec> _instantiateImageCodec(
       Uint8List list, {
-        double compressionRatio,
-        int maxBytes,
-        int targetWidth,
-        int targetHeight,
+        double? compressionRatio,
+        int? maxBytes,
+        int? targetWidth,
+        int? targetHeight,
       }) async {
     final ImmutableBuffer buffer = await ImmutableBuffer.fromUint8List(list);
     final ImageDescriptor descriptor = await ImageDescriptor.encoded(buffer);
@@ -221,13 +221,13 @@ class _SizeAwareCacheKey {
 
   final Object providerCacheKey;
 
-  final int maxBytes;
+  final int? maxBytes;
 
-  final double compressionRatio;
+  final double? compressionRatio;
 
-  final int width;
+  final int? width;
 
-  final int height;
+  final int? height;
 
   @override
   bool operator ==(Object other) {
