@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_image_cache_demo/cache_image.dart';
+import 'package:flutter_image_cache_demo/kt_image.dart';
 
 void main() {
   runApp(MyApp());
@@ -42,6 +42,8 @@ class _MyHomePageState extends State<MyHomePage> {
       final String size = memoryCacheSize;
       streamController.sink.add(size);
     });
+    debugPrint("screenWith:${mediaData.size.width}");
+    debugPrint("calculateSize:${mediaData.size.width * 200 * 4}");
     super.initState();
   }
 
@@ -65,8 +67,8 @@ class _MyHomePageState extends State<MyHomePage> {
         image1,
         fit: BoxFit.fitWidth,
         width: mediaData.size.width,
+        enableMemoryCache: true,
         height: 200,
-        //maxBytes: (mediaData.size.width * 200 * 4).round(),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.push(
@@ -95,10 +97,11 @@ class Page2 extends StatelessWidget {
       body: TkImage.network(
         image2,
         fit: BoxFit.fitWidth,
-        width: mediaData.size.width,
-        height: 200,
+        // width: mediaData.size.width,
+        // height: 200,
+        computeSize: true,
         borderRadius: BorderRadius.circular(20),
-        enableMemoryCache: false,
+        enableMemoryCache: true,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.pop(context),
@@ -119,9 +122,16 @@ Widget _buildCacheSizeView() => Center(
         ),
       ),
     );
-
-String get memoryCacheSize =>
-    "${((PaintingBinding.instance?.imageCache?.currentSizeBytes ?? 0) / 1024).toStringAsFixed(2)}K";
+int sizeCache = 0;
+String get memoryCacheSize {
+  final int cacheSize =
+      PaintingBinding.instance?.imageCache?.currentSizeBytes ?? 0;
+  if (sizeCache != cacheSize) {
+    sizeCache = cacheSize;
+    debugPrint("imageCacheSize:$cacheSize");
+  }
+  return "${(cacheSize / 1024).toStringAsFixed(2)}K";
+}
 
 MediaQueryData get mediaData =>
     MediaQueryData.fromWindow(WidgetsBinding.instance!.window);

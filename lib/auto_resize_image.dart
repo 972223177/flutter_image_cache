@@ -16,18 +16,18 @@ import 'package:flutter/material.dart';
 /// cached size provided here.
 class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   const AutoResizeImage(
-      this.imageProvider, {
-        this.compressionRatio,
-        this.maxBytes = 500 << 10,
-        this.width,
-        this.height,
-        this.allowUpscaling = false,
-      }) : assert((compressionRatio != null &&
-      compressionRatio > 0 &&
-      compressionRatio < 1) ||
-      (maxBytes != null && maxBytes > 0) ||
-      width != null ||
-      height != null);
+    this.imageProvider, {
+    this.compressionRatio,
+    this.maxBytes = 500 << 10,
+    this.width,
+    this.height,
+    this.allowUpscaling = false,
+  }) : assert((compressionRatio != null &&
+                compressionRatio > 0 &&
+                compressionRatio < 1) ||
+            (maxBytes != null && maxBytes > 0) ||
+            width != null ||
+            height != null);
 
   /// The [ImageProvider] that this class wraps.
   final ImageProvider imageProvider;
@@ -72,8 +72,8 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
     int? maxBytes,
   }) {
     if ((compressionRatio != null &&
-        compressionRatio > 0 &&
-        compressionRatio < 1) ||
+            compressionRatio > 0 &&
+            compressionRatio < 1) ||
         (maxBytes != null && maxBytes > 0) ||
         cacheWidth != null ||
         cacheHeight != null) {
@@ -91,15 +91,15 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   @override
   ImageStreamCompleter load(_SizeAwareCacheKey key, DecoderCallback decode) {
     final DecoderCallback decodeResize = (
-        Uint8List bytes, {
-          int? cacheWidth,
-          int? cacheHeight,
-          bool? allowUpscaling,
-        }) {
+      Uint8List bytes, {
+      int? cacheWidth,
+      int? cacheHeight,
+      bool? allowUpscaling,
+    }) {
       assert(
-      cacheWidth == null && cacheHeight == null && allowUpscaling == null,
-      'ResizeImage cannot be composed with another ImageProvider that applies '
-          'cacheWidth, cacheHeight, or allowUpscaling.',
+        cacheWidth == null && cacheHeight == null && allowUpscaling == null,
+        'ResizeImage cannot be composed with another ImageProvider that applies '
+        'cacheWidth, cacheHeight, or allowUpscaling.',
       );
       return _instantiateImageCodec(
         bytes,
@@ -115,7 +115,7 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
     );
     if (!kReleaseMode) {
       completer.debugLabel =
-      '${completer.debugLabel} - Resized(compressionRatio:'
+          '${completer.debugLabel} - Resized(compressionRatio:'
           ' ${key.compressionRatio} maxBytes:${key.maxBytes} size:${key.width}*${key.height})';
     }
     return completer;
@@ -149,14 +149,16 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   }
 
   Future<Codec> _instantiateImageCodec(
-      Uint8List list, {
-        double? compressionRatio,
-        int? maxBytes,
-        int? targetWidth,
-        int? targetHeight,
-      }) async {
+    Uint8List list, {
+    double? compressionRatio,
+    int? maxBytes,
+    int? targetWidth,
+    int? targetHeight,
+  }) async {
     final ImmutableBuffer buffer = await ImmutableBuffer.fromUint8List(list);
     final ImageDescriptor descriptor = await ImageDescriptor.encoded(buffer);
+    debugPrint(
+        "$this descriptor width:${descriptor.width},height:${descriptor.height}");
     if (compressionRatio != null) {
       final _IntSize size = _resize(
         descriptor.width,
@@ -195,6 +197,7 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   _IntSize _resize(int width, int height, int maxBytes) {
     final double ratio = width / height;
     final int maxSize_1_4 = maxBytes >> 2;
+    debugPrint("$this maxSize_1_4:$maxSize_1_4");
     final int targetHeight = sqrt(maxSize_1_4 / ratio).floor();
     final int targetWidth = (ratio * targetHeight).floor();
     return _IntSize(targetWidth, targetHeight);
@@ -212,12 +215,12 @@ class _IntSize {
 @immutable
 class _SizeAwareCacheKey {
   const _SizeAwareCacheKey(
-      this.providerCacheKey,
-      this.compressionRatio,
-      this.maxBytes,
-      this.width,
-      this.height,
-      );
+    this.providerCacheKey,
+    this.compressionRatio,
+    this.maxBytes,
+    this.width,
+    this.height,
+  );
 
   final Object providerCacheKey;
 
@@ -244,10 +247,10 @@ class _SizeAwareCacheKey {
 
   @override
   int get hashCode => hashValues(
-    providerCacheKey,
-    maxBytes,
-    compressionRatio,
-    width,
-    height,
-  );
+        providerCacheKey,
+        maxBytes,
+        compressionRatio,
+        width,
+        height,
+      );
 }
