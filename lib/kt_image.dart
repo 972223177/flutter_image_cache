@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter_image_cache_demo/auto_resize_image.dart';
+
+import 'auto_resize_image.dart';
 
 typedef ImageLoadingBuilder = Widget Function(
   BuildContext context,
@@ -36,7 +37,14 @@ class _Asset extends _ImageType {
   final String assetName;
 
   const _Asset(this.assetName);
+  @override
+  String toString() {
+    return "_Asset $assetName";
+  }
 }
+
+const Duration _KDefaultDuration = const Duration(milliseconds: 300);
+const Duration _KNonAnim = const Duration(milliseconds: 0);
 
 class _Memory extends _ImageType {
   final Uint8List bytes;
@@ -48,7 +56,7 @@ class TkImage extends HookWidget {
   final double? width;
   final double? height;
 
-  ///是否缓存在内存中(PaintingBinding.instance.imageCache)
+  ///是否缓存在内存中[PaintingBinding.instance.imageCache]
   final bool enableMemoryCache;
 
   ///加载图像失败时，是否清除内存缓存如果为true，图像将在下次重新加载。
@@ -69,14 +77,21 @@ class TkImage extends HookWidget {
   ///是否要计算宽高 如果有给宽高值，该字段无效
   final bool computeSize;
 
-  ///如果宽高或者约束会比实际图片的大，这时候应该被展示的位置 倍率
+  ///如果宽高或者约束会比实际图片的大，这时候应该被展示的位置
   final Alignment align;
 
-  ///基于绘制后图片的缩放倍率，默认是2倍
+  ///基于绘制后图片的缩放倍率，默认是4倍
   final int defaultMagnification;
 
   final _ImageType _type;
 
+  ///约束
+  final BoxConstraints? constraints;
+
+  final Color? color;
+
+  ///是否使用动画
+  final bool useFadeAnim;
   TkImage.network(
     String url, {
     Key? key,
@@ -86,16 +101,23 @@ class TkImage extends HookWidget {
     this.height,
     this.loadingBuilder,
     this.loadFailedBuilder,
+    this.useFadeAnim = true,
+    this.color,
     this.align = Alignment.center,
     this.defaultMagnification = 4,
     this.computeSize = true,
-    this.enableMemoryCache = false,
+    this.enableMemoryCache = true,
     this.clearMemoryCacheIfFailed = true,
     this.clearMemoryCacheWhenDispose = true,
     this.fit,
     this.borderRadius,
     this.maxBytes,
+    BoxConstraints? constraints,
   })  : _type = _NetWork(cache, retries, url),
+        constraints = (width != null || height != null)
+            ? constraints?.tighten(width: width, height: height) ??
+                BoxConstraints.tightFor(width: width, height: height)
+            : constraints,
         super(key: key);
 
   TkImage.memory(
@@ -107,14 +129,21 @@ class TkImage extends HookWidget {
     this.loadFailedBuilder,
     this.align = Alignment.center,
     this.defaultMagnification = 4,
+    this.useFadeAnim = true,
     this.computeSize = true,
-    this.enableMemoryCache = false,
+    this.enableMemoryCache = true,
     this.clearMemoryCacheIfFailed = true,
     this.clearMemoryCacheWhenDispose = true,
     this.fit,
+    this.color,
     this.borderRadius,
     this.maxBytes,
+    BoxConstraints? constraints,
   })  : _type = _Memory(bytes),
+        constraints = (width != null || height != null)
+            ? constraints?.tighten(width: width, height: height) ??
+                BoxConstraints.tightFor(width: width, height: height)
+            : constraints,
         super(key: key);
 
   TkImage.asset(
@@ -125,30 +154,36 @@ class TkImage extends HookWidget {
     this.loadingBuilder,
     this.loadFailedBuilder,
     this.align = Alignment.center,
+    this.useFadeAnim = true,
     this.defaultMagnification = 4,
     this.computeSize = true,
-    this.enableMemoryCache = false,
+    this.enableMemoryCache = true,
     this.clearMemoryCacheIfFailed = true,
     this.clearMemoryCacheWhenDispose = true,
     this.fit,
+    this.color,
     this.borderRadius,
     this.maxBytes,
+    BoxConstraints? constraints,
   })  : _type = _Asset(assetName),
+        constraints = (width != null || height != null)
+            ? constraints?.tighten(width: width, height: height) ??
+                BoxConstraints.tightFor(width: width, height: height)
+            : constraints,
         super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final AnimationController controller = useAnimationController(
-      duration: Duration(milliseconds: 300),
+      duration: useFadeAnim ? _KDefaultDuration : _KNonAnim,
     );
     bool useSize;
-    if (width != null && height != null) {
+    if (constraints != null) {
       useSize = true;
     } else {
       useSize = !computeSize;
     }
-    debugPrint(
-        "$this $_type size:(width:$width,height:$height),computeSize:$computeSize}");
+
     if (!useSize) {
       return LayoutBuilder(
         builder: (context, constraint) =>
@@ -156,67 +191,50 @@ class TkImage extends HookWidget {
       );
     } else {
       assert(width != null && height != null);
-      return _buildImageByType(controller, context,
-          BoxConstraints(maxWidth: width!, maxHeight: height!));
+      return _buildImageByType(controller, context, constraints);
     }
   }
 
   ///根据类型构建ImageProvider
   Widget _buildImageByType(AnimationController controller, BuildContext context,
-      BoxConstraints boxConstraints) {
-    debugPrint("$this $_type boxConstraints:$boxConstraints");
-    final int realMaxBytes = maxBytes ??
-        (boxConstraints.maxWidth *
-                boxConstraints.maxHeight *
-                4 *
-                defaultMagnification)
-            .round();
+      BoxConstraints? boxConstraints) {
+    int? realMaxBytes;
+    if (boxConstraints != null &&
+        boxConstraints.maxWidth != double.infinity &&
+        boxConstraints.maxHeight != double.infinity) {
+      realMaxBytes = maxBytes ??
+          (boxConstraints.maxWidth *
+                  boxConstraints.maxHeight *
+                  4 *
+                  defaultMagnification)
+              .round();
+    }
+    debugPrint(
+        "$this $_type size:(width:$width,height:$height),constraint:$boxConstraints,computeSize:$computeSize}");
     ImageProvider imageProvider;
     if (_type is _NetWork) {
       final _NetWork config = _type as _NetWork;
-      imageProvider = AutoResizeImage.resizeIfNeeded(
-        provider: ExtendedNetworkImageProvider(
-          config.url,
-          cache: config.cache,
-          retries: config.retries,
-        ),
-        maxBytes: realMaxBytes,
-        cacheWidth: width?.round(),
-        cacheHeight: height?.round(),
+      imageProvider = ExtendedNetworkImageProvider(
+        config.url,
+        cache: config.cache,
+        retries: config.retries,
       );
     } else if (_type is _Asset) {
       final _Asset config = _type as _Asset;
-      imageProvider = AutoResizeImage.resizeIfNeeded(
-        provider: ExtendedAssetImageProvider(config.assetName),
-        maxBytes: realMaxBytes,
-        cacheWidth: width?.round(),
-        cacheHeight: height?.round(),
-      );
+      imageProvider = ExtendedAssetImageProvider(config.assetName);
     } else {
       final _Memory config = _type as _Memory;
-      imageProvider = AutoResizeImage.resizeIfNeeded(
-        provider: ExtendedMemoryImageProvider(config.bytes),
-        maxBytes: realMaxBytes,
-        cacheWidth: width?.round(),
-        cacheHeight: height?.round(),
-      );
+      imageProvider = ExtendedMemoryImageProvider(config.bytes);
     }
-    return _buildExtendedImage(
-        controller, context, boxConstraints, imageProvider);
-  }
-
-  ///构建ExtendedImage
-  Widget _buildExtendedImage(
-      AnimationController controller,
-      BuildContext context,
-      BoxConstraints boxConstraints,
-      ImageProvider imageProvider) {
-    final double realWidth = boxConstraints.maxWidth;
-    final double realHeight = boxConstraints.maxHeight;
     return ExtendedImage(
-      image: imageProvider,
-      width: realWidth,
-      height: realHeight,
+      image: AutoResizeImage.resizeIfNeeded(
+        provider: imageProvider,
+        maxBytes: realMaxBytes,
+        cacheWidth: width?.toInt(),
+        cacheHeight: height?.toInt(),
+      ),
+      color: color,
+      constraints: boxConstraints,
       alignment: align,
       fit: fit,
       enableMemoryCache: enableMemoryCache,
@@ -228,15 +246,15 @@ class TkImage extends HookWidget {
           case LoadState.loading:
             controller.reset();
             return loadingBuilder?.call(context, state.loadingProgress) ??
-                _buildDefaultPlaceholder(realWidth, realHeight);
+                _buildDefaultPlaceholder();
 
           case LoadState.completed:
             controller.forward();
+
             final Widget rawImage = ExtendedRawImage(
               image: state.extendedImageInfo?.image,
               fit: fit,
-              width: realWidth,
-              height: realHeight,
+              color: color,
             );
             return FadeTransition(
               opacity: controller,
@@ -250,15 +268,18 @@ class TkImage extends HookWidget {
           case LoadState.failed:
             controller.reset();
             return loadFailedBuilder?.call(context, state.lastStack) ??
-                _buildDefaultPlaceholder(realWidth, realHeight);
+                _buildDefaultPlaceholder();
+          default:
+            controller.reset();
+            return loadingBuilder?.call(context, state.loadingProgress) ??
+                _buildDefaultPlaceholder();
         }
       },
     );
   }
 
-  Widget _buildDefaultPlaceholder(double width, double height) => Container(
-        width: width,
-        height: height,
+  Widget _buildDefaultPlaceholder() => Container(
+        constraints: constraints,
         decoration: BoxDecoration(
           borderRadius: borderRadius,
         ),

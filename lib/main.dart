@@ -63,12 +63,31 @@ class _MyHomePageState extends State<MyHomePage> {
           _buildCacheSizeView(),
         ],
       ),
-      body: TkImage.network(
-        image1,
-        fit: BoxFit.fitWidth,
-        width: mediaData.size.width,
-        enableMemoryCache: true,
-        height: 200,
+      body: Column(
+        children: [
+          Container(
+            color: Colors.red,
+            height: 46,
+            child: Row(
+              children: <Widget>[
+                LayoutBuilder(builder: (_, constraint) {
+                  Image image1 = Image.asset(
+                    "image/icon_main_search.png",
+                    fit: BoxFit.contain,
+                  );
+                  image1.image.resolve(ImageConfiguration.empty).addListener(
+                      ImageStreamListener((image, synchronousCall) {
+                    debugPrint(
+                        "width:${image.image.width},height:${image.image.height}");
+                  }));
+                  return image1;
+                }),
+                Text("Image"),
+              ],
+            ),
+          ),
+          Expanded(child: SizedBox()),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.push(
@@ -123,6 +142,7 @@ Widget _buildCacheSizeView() => Center(
       ),
     );
 int sizeCache = 0;
+
 String get memoryCacheSize {
   final int cacheSize =
       PaintingBinding.instance?.imageCache?.currentSizeBytes ?? 0;
