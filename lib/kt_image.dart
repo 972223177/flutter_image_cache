@@ -285,9 +285,10 @@ class _TkImageState extends State<TkImage> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
-    if (widget.clearCacheWhenScopeDisposed) {
-      context.unregisterToTkImageScope(imageProvider);
-    }
+    debugPrint("$this dispose:${widget.clearCacheWhenScopeDisposed}");
+    // if (widget.clearCacheWhenScopeDisposed) {
+    //   context.unregisterToTkImageScope(imageProvider);
+    // }
     controller.dispose();
     super.dispose();
   }
