@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_image_cache_demo/media_data.dart';
 
 /// Instructs Flutter to decode the image at the specified dimensions
 /// instead of at its native size.
@@ -16,18 +17,26 @@ import 'package:flutter/material.dart';
 /// cached size provided here.
 class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   const AutoResizeImage(
-    this.imageProvider, {
-    this.compressionRatio,
-    this.maxBytes = 500 << 10,
-    this.width,
-    this.height,
-    this.allowUpscaling = false,
-  }) : assert((compressionRatio != null &&
-                compressionRatio > 0 &&
-                compressionRatio < 1) ||
-            (maxBytes != null && maxBytes > 0) ||
-            width != null ||
-            height != null);
+      this.imageProvider, {
+        this.compressionRatio,
+        this.maxBytes = 500 << 10,
+        this.width,
+        this.height,
+        this.allowUpscaling = false,
+        this.tag,
+        this.upperLimitRatio,
+      }) : assert((compressionRatio != null &&
+      compressionRatio > 0 &&
+      compressionRatio < 1) ||
+      (maxBytes != null && maxBytes > 0) ||
+      width != null ||
+      height != null);
+
+  ///debug tag
+  final Object? tag;
+
+  ///如果宽高乘以这个比例后大于原图的宽高，则不会进行压缩(默认像素比例)
+  final double? upperLimitRatio;
 
   /// The [ImageProvider] that this class wraps.
   final ImageProvider imageProvider;
@@ -70,10 +79,12 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
     int? cacheHeight,
     double? compressionRatio,
     int? maxBytes,
+    double? upperLimitRatio,
+    Object? tag,
   }) {
     if ((compressionRatio != null &&
-            compressionRatio > 0 &&
-            compressionRatio < 1) ||
+        compressionRatio > 0 &&
+        compressionRatio < 1) ||
         (maxBytes != null && maxBytes > 0) ||
         cacheWidth != null ||
         cacheHeight != null) {
@@ -83,6 +94,8 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
         height: cacheHeight,
         maxBytes: maxBytes,
         compressionRatio: compressionRatio,
+        tag: tag,
+        upperLimitRatio: upperLimitRatio,
       );
     }
     return provider;
@@ -91,15 +104,15 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   @override
   ImageStreamCompleter load(_SizeAwareCacheKey key, DecoderCallback decode) {
     final DecoderCallback decodeResize = (
-      Uint8List bytes, {
-      int? cacheWidth,
-      int? cacheHeight,
-      bool? allowUpscaling,
-    }) {
+        Uint8List bytes, {
+          int? cacheWidth,
+          int? cacheHeight,
+          bool? allowUpscaling,
+        }) {
       assert(
-        cacheWidth == null && cacheHeight == null && allowUpscaling == null,
-        'ResizeImage cannot be composed with another ImageProvider that applies '
-        'cacheWidth, cacheHeight, or allowUpscaling.',
+      cacheWidth == null && cacheHeight == null && allowUpscaling == null,
+      'ResizeImage cannot be composed with another ImageProvider that applies '
+          'cacheWidth, cacheHeight, or allowUpscaling.',
       );
       return _instantiateImageCodec(
         bytes,
@@ -115,7 +128,7 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
     );
     if (!kReleaseMode) {
       completer.debugLabel =
-          '${completer.debugLabel} - Resized(compressionRatio:'
+      '${completer.debugLabel} - Resized(compressionRatio:'
           ' ${key.compressionRatio} maxBytes:${key.maxBytes} size:${key.width}*${key.height})';
     }
     return completer;
@@ -149,25 +162,74 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   }
 
   Future<Codec> _instantiateImageCodec(
-    Uint8List list, {
-    double? compressionRatio,
-    int? maxBytes,
-    int? targetWidth,
-    int? targetHeight,
-  }) async {
+      Uint8List list, {
+        double ?compressionRatio,
+        int? maxBytes,
+        int? targetWidth,
+        int? targetHeight,
+      }) async {
     final ImmutableBuffer buffer = await ImmutableBuffer.fromUint8List(list);
     final ImageDescriptor descriptor = await ImageDescriptor.encoded(buffer);
-    debugPrint(
-        "$this descriptor width:${descriptor.width},height:${descriptor.height}");
-    if (compressionRatio != null) {
-      final _IntSize size = _resize(
+    //算出上限的值
+    final double realUpperLimitRatio =
+    (upperLimitRatio == null || upperLimitRatio == 0)
+        ? devicePixelRatio
+        : upperLimitRatio!;
+    final double limitWidth = realUpperLimitRatio * (targetWidth ?? 0);
+    final double limitHeight = realUpperLimitRatio * (targetHeight ?? 0);
+    //如果原图就低于上限就不做压缩,防止出现小图压缩的情况
+    if (targetWidth != null &&
+        targetHeight != null &&
+        descriptor.width <= limitWidth &&
+        descriptor.height <= limitHeight) {
+      // debugPrint("$this $tag unResize descriptor width:${descriptor.width},"
+      //     "height:${descriptor.height},targetWidth:$targetWidth,"
+      //     "targetHeight:$targetHeight,upperWidth:$limitWidth,"
+      //     "upperHeight:$limitHeight,upperLimitRatio:$upperLimitRatio");
+      targetWidth = descriptor.width;
+      targetHeight = descriptor.height;
+    } else if (targetWidth != null &&
+        targetHeight != null &&
+        targetWidth != double.infinity &&
+        targetHeight != double.infinity) {
+      //如果宽高有明确的值，那就根据实际view对图片进行压缩
+      double scale;
+      final double widthScale = targetWidth / descriptor.width;
+      final double heightScale = targetHeight / descriptor.height;
+      if (widthScale > heightScale) {
+        scale = widthScale;
+      } else {
+        scale = heightScale;
+      }
+      targetWidth = (descriptor.width * scale * realUpperLimitRatio).round();
+      targetHeight = (descriptor.height * scale * realUpperLimitRatio).round();
+      // debugPrint(
+      //     "$this $tag resizeImage:scale:$scale,originSize:Size(width:${descriptor.width},height:${descriptor.height}),Size(width:$width,height:$height),targetWidth:$targetWidth,targetHeight:$targetHeight");
+    } else if (compressionRatio != null) {
+      //在以上两个判断都无效的情况下，会走该判断。根据比例对原图直接进行按比例压缩
+      //如果压缩后出现尺寸过低的情况，就自动上调压缩比例，直到符合标准为止
+      final double step = 0.01;
+      double currCompressionRatio = compressionRatio;
+      _IntSize size = _resize(
         descriptor.width,
         descriptor.height,
-        (descriptor.width * descriptor.height * 4 * compressionRatio).toInt(),
+        (descriptor.width * descriptor.height * 4 * currCompressionRatio)
+            .toInt(),
       );
+      while (size.width < limitWidth && size.height < limitHeight) {
+        currCompressionRatio += step;
+        size = _resize(
+            descriptor.width,
+            descriptor.height,
+            (descriptor.width * descriptor.height * 4 * currCompressionRatio)
+                .toInt());
+        debugPrint(
+            "$this $tag compress compressWidth:${size.width},compressHeight:${size.height},currentRatio:$currCompressionRatio");
+      }
       targetWidth = size.width;
       targetHeight = size.height;
     } else if (maxBytes != null) {
+      //默认maxBytes为500<<10，也就是500乘以2的十次方字节
       final _IntSize size = _resize(
         descriptor.width,
         descriptor.height,
@@ -197,7 +259,7 @@ class AutoResizeImage extends ImageProvider<_SizeAwareCacheKey> {
   _IntSize _resize(int width, int height, int maxBytes) {
     final double ratio = width / height;
     final int maxSize_1_4 = maxBytes >> 2;
-    debugPrint("$this maxSize_1_4:$maxSize_1_4");
+    // debugPrint("$this maxSize_1_4:$maxSize_1_4");
     final int targetHeight = sqrt(maxSize_1_4 / ratio).floor();
     final int targetWidth = (ratio * targetHeight).floor();
     return _IntSize(targetWidth, targetHeight);
@@ -215,12 +277,12 @@ class _IntSize {
 @immutable
 class _SizeAwareCacheKey {
   const _SizeAwareCacheKey(
-    this.providerCacheKey,
-    this.compressionRatio,
-    this.maxBytes,
-    this.width,
-    this.height,
-  );
+      this.providerCacheKey,
+      this.compressionRatio,
+      this.maxBytes,
+      this.width,
+      this.height,
+      );
 
   final Object providerCacheKey;
 
@@ -247,10 +309,10 @@ class _SizeAwareCacheKey {
 
   @override
   int get hashCode => hashValues(
-        providerCacheKey,
-        maxBytes,
-        compressionRatio,
-        width,
-        height,
-      );
+    providerCacheKey,
+    maxBytes,
+    compressionRatio,
+    width,
+    height,
+  );
 }
