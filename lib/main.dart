@@ -113,14 +113,13 @@ class Page2 extends StatelessWidget {
           _buildCacheSizeView(),
         ],
       ),
-      body: TkImage.network(
-        image2,
-        fit: BoxFit.fitWidth,
-        // width: mediaData.size.width,
-        // height: 200,
-        computeSize: true,
-        borderRadius: BorderRadius.circular(20),
-        enableMemoryCache: true,
+      body: TkImageScope(
+        child: TkImage.network(
+          image2,
+          fit: BoxFit.fitWidth,
+          borderRadius: BorderRadius.circular(20),
+          enableMemoryCache: true,
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.pop(context),

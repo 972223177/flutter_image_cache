@@ -20,54 +20,8 @@ typedef ImageLoadFailedBuilder = Widget Function(
 
 typedef ImageLoadWrapper = Widget Function(Widget loadWidget);
 
-abstract class _ImageType {
-  const _ImageType();
-
-  @override
-  String toString() {
-    return this.runtimeType.toString();
-  }
-}
-
-class _NetWork extends _ImageType {
-  final bool cache;
-  final int retries;
-  final String url;
-
-  const _NetWork(this.cache, this.retries, this.url);
-
-  @override
-  String toString() {
-    return "_NetWork $url";
-  }
-}
-
-class _Asset extends _ImageType {
-  final String assetName;
-
-  const _Asset(this.assetName);
-
-  @override
-  String toString() {
-    return "_Asset $assetName";
-  }
-}
-
-class _File extends _ImageType {
-  final File file;
-
-  const _File(this.file);
-}
-
 const Duration _KDefaultDuration = const Duration(milliseconds: 300);
 const Duration _KNonAnim = const Duration(milliseconds: 0);
-
-class _Memory extends _ImageType {
-  final Uint8List bytes;
-
-  const _Memory(this.bytes);
-}
-
 const double _KDefaultCompressRatio = .5;
 
 ///可以对图片进行内存管理，具体可以看[enableMemoryCache]、[clearMemoryCacheWhenDispose]、[clearMemoryCacheIfFailed]这几个字段；
@@ -97,7 +51,7 @@ class TkImage extends StatefulWidget {
   ///如果宽高或者约束会比实际图片的大，这时候应该被展示的位置
   final Alignment align;
 
-  final _ImageType _type;
+  final ImageProvider imageProvider;
 
   ///布局约束
   final BoxConstraints? constraints;
@@ -165,7 +119,8 @@ class TkImage extends StatefulWidget {
     this.fit = BoxFit.contain,
     this.borderRadius,
     BoxConstraints? constraints,
-  })  : _type = _NetWork(cache, retries, url),
+  })  : imageProvider =
+            TkImageProvider.network(url, cache: cache, retries: retries),
         constraints = (width != null || height != null)
             ? constraints?.tighten(width: width, height: height) ??
                 BoxConstraints.tightFor(width: width, height: height)
@@ -196,7 +151,7 @@ class TkImage extends StatefulWidget {
     this.fit = BoxFit.contain,
     this.borderRadius,
     BoxConstraints? constraints,
-  })  : _type = _Memory(bytes),
+  })  : imageProvider = TkImageProvider.memory(bytes),
         constraints = (width != null || height != null)
             ? constraints?.tighten(width: width, height: height) ??
                 BoxConstraints.tightFor(width: width, height: height)
@@ -228,7 +183,7 @@ class TkImage extends StatefulWidget {
     this.fit = BoxFit.contain,
     this.borderRadius,
     BoxConstraints? constraints,
-  })  : _type = _Asset(assetName),
+  })  : imageProvider = TkImageProvider.asset(assetName),
         constraints = (width != null || height != null)
             ? constraints?.tighten(width: width, height: height) ??
                 BoxConstraints.tightFor(width: width, height: height)
@@ -259,7 +214,7 @@ class TkImage extends StatefulWidget {
     this.fit = BoxFit.contain,
     this.borderRadius,
     BoxConstraints? constraints,
-  })  : _type = _File(file),
+  })  : imageProvider = TkImageProvider.file(file),
         constraints = (width != null || height != null)
             ? constraints?.tighten(width: width, height: height) ??
                 BoxConstraints.tightFor(width: width, height: height)
@@ -272,7 +227,6 @@ class TkImage extends StatefulWidget {
 
 class _TkImageState extends State<TkImage> with SingleTickerProviderStateMixin {
   late AnimationController controller;
-  late ImageProvider imageProvider;
 
   @override
   void initState() {
@@ -316,23 +270,7 @@ class _TkImageState extends State<TkImage> with SingleTickerProviderStateMixin {
   ///根据类型构建图片
   Widget _buildImageByType(AnimationController controller, BuildContext context,
       BoxConstraints boxConstraints) {
-    if (widget._type is _NetWork) {
-      final _NetWork config = widget._type as _NetWork;
-      imageProvider = TkImageProvider.network(
-        config.url,
-        cache: config.cache,
-        retries: config.retries,
-      );
-    } else if (widget._type is _Asset) {
-      final _Asset config = widget._type as _Asset;
-      imageProvider = TkImageProvider.asset(config.assetName);
-    } else if (widget._type is _Memory) {
-      final _Memory config = widget._type as _Memory;
-      imageProvider = TkImageProvider.memory(config.bytes);
-    } else {
-      final _File config = widget._type as _File;
-      imageProvider = TkImageProvider.file(config.file);
-    }
+    ImageProvider imageProvider = widget.imageProvider;
     //防止Infinity或者NaN的情况
     final bool safetyWidth = !_checkDigitalSafety(boxConstraints.maxWidth);
     final bool safetyHeight = !_checkDigitalSafety(boxConstraints.maxHeight);
@@ -344,7 +282,7 @@ class _TkImageState extends State<TkImage> with SingleTickerProviderStateMixin {
         cacheWidth: safetyWidth ? boxConstraints.maxWidth.round() : null,
         cacheHeight: safetyHeight ? boxConstraints.maxHeight.round() : null,
         compressionRatio: widget.compressionRatio,
-        tag: widget._type,
+        tag: imageProvider,
         upperLimitRatio: widget.upperLimitRatio ?? devicePixelRatio,
       );
     }
